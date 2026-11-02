@@ -171,7 +171,11 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+// 函数式组件不会被 unplugin 自动注入样式，必须手动引入，否则提示框会跑到左上角
+import 'element-plus/es/components/message/style/css'
+import 'element-plus/es/components/message-box/style/css'
 
 /*
   USE_MOCK：true 时不发网络请求，全部用本地数据。
@@ -204,13 +208,11 @@ const sessions = ref([])
 const currentSessionId = ref(null)
 
 /* ==================== ④ 消息 ==================== */
-const messages = ref([
-  {
-    role: 'ai',
-    text: '您好！我是小暖，您的AI心理健康助手。很高兴陪伴您，为您提供温暖的心理支持。请告诉我，今天您感觉怎么样？有什么想要分享的吗？',
-    time: '刚刚'
-  }
-])
+/* 开场问候语：初始渲染和"新建会话"共用，避免两处各写一份、改文案时漏改 */
+const GREETING =
+  '您好！我是小暖，您的AI心理健康助手。很高兴陪伴您，为您提供温暖的心理支持。请告诉我，今天您感觉怎么样？有什么想要分享的吗？'
+
+const messages = ref([{ role: 'ai', text: GREETING, time: '刚刚' }])
 
 const input = ref('')
 const sending = ref(false)
@@ -245,32 +247,68 @@ async function send() {
   sending.value = true
   scrollToBottom()
 
-  // 【模拟】800ms 后回一条。真实场景这里换成 POST /api/ai/chat 或 WebSocket 推送
-  if (USE_MOCK) {
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    messages.value.push({
-      role: 'ai',
-      text: REPLIES[replyIndex % REPLIES.length],
-      time: nowText()
-    })
-    replyIndex += 1
+  try {
+    if (USE_MOCK) {
+      // 【模拟】800ms 后回一条
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      messages.value.push({
+        role: 'ai',
+        text: REPLIES[replyIndex % REPLIES.length],
+        time: nowText()
+      })
+      replyIndex += 1
+    } else {
+      // 【待接】POST /api/ai/chat（或 WebSocket 推送）
+      // 真实场景把接口返回的消息 push 进 messages 即可
+    }
+  } finally {
+    // 必须放在 finally：接后端后如果接口报错、或 USE_MOCK 改成 false，
+    // sending 不在这里复位就会永久为 true —— 发送按钮和"新建会话"会一起被锁死
     sending.value = false
     scrollToBottom()
   }
 }
 
-/* 新建会话：清空当前对话，回到初始问候语 */
-function newSession() {
+/* 当前会话是否还是"空白"：只剩那条 AI 开场白，用户一个字都没说过。
+   用 every 而不是只看长度，是为了防止以后 AI 主动连发两条时被误判成"非空" */
+const isBlankSession = computed(
+  () => messages.value.length <= 1 && messages.value.every((m) => m.role === 'ai')
+)
+
+/* 新建会话：清空当前对话，回到开场问候语
+   三道保护缺一不可：
+     ① AI 正在回复时禁止新建 —— 否则 800ms 后那条回复会 push 到新会话里，
+        表现为"刚新建就冒出一句答非所问的 AI 消息"
+     ② 当前已是空白会话时不再执行 —— 否则可以无限点，每次都重置一遍数组
+     ③ 已有对话内容时先确认 —— 点击按钮在对话框右上角，很容易误触，
+        而当前是 mock 阶段没有任何持久化，清掉就真的没了 */
+async function newSession() {
+  if (sending.value) {
+    ElMessage.warning('请等待当前回复完成')
+    return
+  }
+
+  if (isBlankSession.value) {
+    ElMessage.info('当前已经是新对话了')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm('新建会话会清空当前对话内容，确定继续吗？', '新建会话', {
+      confirmButtonText: '新建',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return // 点了取消或右上角关闭
+  }
+
+  // 【待接】POST /api/ai/sessions —— 先把当前会话存进历史，再清空
   currentSessionId.value = null
-  messages.value = [
-    {
-      role: 'ai',
-      text: '您好！我是小暖，您的AI心理健康助手。很高兴陪伴您，为您提供温暖的心理支持。请告诉我，今天您感觉怎么样？有什么想要分享的吗？',
-      time: '刚刚'
-    }
-  ]
+  messages.value = [{ role: 'ai', text: GREETING, time: '刚刚' }]
   input.value = ''
-  scrollToBottom()
+  replyIndex = 0
+  await scrollToBottom()
 }
 
 function openSession(id) {
