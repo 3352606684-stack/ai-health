@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AiHealth · 项目源码总览</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --panel2:#fbfcfd;
+    --line:#e5e7eb; --line2:#eef0f3;
+    --tx:#1f2430; --tx2:#5b6472; --tx3:#8a93a3;
+    --accent:#2563eb; --accent-soft:#eef4ff;
+    --kw:#a626a4; --str:#1a7f37; --cmt:#8b949e; --num:#b45309;
+    --ann:#0f766e; --fn:#2563eb; --tag:#c2410c; --key:#0f766e;
+    --mono:"JetBrains Mono","Cascadia Code",Consolas,"SF Mono",Menlo,monospace;
+  }
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--tx);font-size:13px;line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{display:flex;height:100vh;overflow:hidden}
+  .sidebar{width:292px;flex:0 0 292px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+  .brand{padding:15px 16px 12px;border-bottom:1px solid var(--line2)}
+  .brand h1{font-size:14px;font-weight:700;letter-spacing:.2px;display:flex;align-items:center;gap:7px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .brand p{font-size:11px;color:var(--tx3);margin-top:5px}
+  .stats{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .chip{font-size:10.5px;padding:2px 7px;border-radius:20px;background:var(--bg);color:var(--tx2);border:1px solid var(--line2);font-family:var(--mono)}
+  .search{padding:10px 12px;border-bottom:1px solid var(--line2)}
+  .search input{width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);font-size:12px;color:var(--tx);outline:none;transition:.15s;font-family:inherit}
+  .search input:focus{border-color:#bfd3f8;background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+  .tree{flex:1;overflow-y:auto;padding:8px 8px 24px}
+  .group{margin-bottom:1px}
+  .group-h{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:var(--tx2);letter-spacing:.3px;user-select:none}
+  .group-h:hover{background:var(--bg)}
+  .group-h .caret{font-size:8px;color:var(--tx3);transition:transform .15s;display:inline-block;width:9px;text-align:center}
+  .group.collapsed .caret{transform:rotate(-90deg)}
+  .group.collapsed .items{display:none}
+  .group-h .cnt{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--tx3);font-weight:400}
+  .items{padding-left:2px}
+  .item{display:flex;align-items:center;gap:7px;padding:5px 8px 5px 16px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--tx2);white-space:nowrap;overflow:hidden}
+  .item:hover{background:var(--bg);color:var(--tx)}
+  .item.active{background:var(--accent-soft);color:#1d4ed8;font-weight:600}
+  .item .ext{font-family:var(--mono);font-size:8.5px;font-weight:700;padding:1px 3px;border-radius:3px;background:var(--bg);color:var(--tx3);border:1px solid var(--line2);flex:0 0 auto;letter-spacing:.3px}
+  .item.active .ext{background:#fff;border-color:#c7dbfb;color:#1d4ed8}
+  .item .nm{overflow:hidden;text-overflow:ellipsis}
+  .side-foot{padding:8px 14px;border-top:1px solid var(--line2);font-size:10.5px;color:var(--tx3);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--panel)}
+  .toolbar{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--line);flex:0 0 auto;min-height:49px}
+  .crumb{font-family:var(--mono);font-size:12px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .crumb b{font-weight:600}
+  .crumb .note{font-family:inherit;font-size:11px;color:var(--tx3);margin-left:8px;font-weight:400}
+  .meta{font-family:var(--mono);font-size:10.5px;color:var(--tx3);flex:0 0 auto}
+  .btn{font-family:inherit;font-size:11.5px;padding:5px 11px;border-radius:6px;cursor:pointer;flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:var(--tx2);transition:.15s}
+  .btn:hover{border-color:#c9d3e2;color:var(--tx);background:var(--panel2)}
+  .btn.ok{background:#ecfdf3;border-color:#b7ebc9;color:#0a7c3f}
+  .viewer{flex:1;overflow:auto;background:#fff}
+  .codewrap{display:flex;align-items:flex-start;min-height:100%}
+  .ln{flex:0 0 auto;text-align:right;padding:14px 10px 40px 18px;font-family:var(--mono);font-size:12px;line-height:1.72;color:#c3c9d4;user-select:none;background:#fbfcfd;border-right:1px solid var(--line2);white-space:pre}
+  pre.code{flex:1;padding:14px 24px 40px 16px;font-family:var(--mono);font-size:12px;line-height:1.72;color:#24292f;white-space:pre;tab-size:4}
+  .cmt{color:var(--cmt);font-style:italic}
+  .str{color:var(--str)}
+  .kw{color:var(--kw)}
+  .num{color:var(--num)}
+  .ann{color:var(--ann)}
+  .fn{color:var(--fn)}
+  .tag{color:var(--tag)}
+  .key{color:var(--key)}
+  ::-webkit-scrollbar{width:11px;height:11px}
+  ::-webkit-scrollbar-thumb{background:#d3d8e0;border-radius:6px;border:3px solid #fff}
+  ::-webkit-scrollbar-thumb:hover{background:#bcc4d0}
+  ::-webkit-scrollbar-track{background:transparent}
+  @media (max-width:820px){
+    .sidebar{width:206px;flex-basis:206px}
+    .meta,.crumb .note{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <h1><span class="dot"></span>AiHealth 源码总览</h1>
+      <p>AI 心理健康服务平台 · 前后端分离</p>
+      <div class="stats">
+        <span class="chip">23 文件</span>
+        <span class="chip">1245 行</span>
+        <span class="chip">32.6 KB</span>
+      </div>
+    </div>
+    <div class="search"><input id="filter" type="text" placeholder="筛选文件名 / 路径…（按 / 聚焦）" autocomplete="off"></div>
+    <nav class="tree" id="tree"></nav>
+    <div class="side-foot">Spring Boot 4.1.2 · Java 25 · Vue 3</div>
+  </aside>
+  <main class="main">
+    <header class="toolbar">
+      <div class="crumb" id="crumb">选择左侧文件查看源码</div>
+      <div class="meta" id="meta"></div>
+      <button class="btn" id="copyBtn">复制代码</button>
+    </header>
+    <div class="viewer" id="viewer"></div>
+  </main>
+</div>
+<script>
+window.FILES = [{"id":"f0","group":"后端 · Spring Boot","rel":"pom.xml","label":"pom.xml","note":"Maven 构建配置","lang":"xml","lines":54,"size":1739,"code":"\u003c?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\u003cproject xmlns=\"http://maven.apache.org/POM/4.0.0\"\n         xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n         xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd\">\n    \u003cmodelVersion>4.0.0\u003c/modelVersion>\n\n    \u003cparent>\n        \u003cgroupId>org.springframework.boot\u003c/groupId>\n        \u003cartifactId>spring-boot-starter-parent\u003c/artifactId>\n        \u003cversion>4.1.2\u003c/version>\n        \u003crelativePath/>\n    \u003c/parent>\n\n    \u003cgroupId>com.example.aihealth\u003c/groupId>\n    \u003cartifactId>demo\u003c/artifactId>\n    \u003cversion>1.0-SNAPSHOT\u003c/version>\n    \u003cname>AiHealth\u003c/name>\n    \u003cdescription>AI 心理健康服务平台\u003c/description>\n\n    \u003cproperties>\n        \u003cjava.version>25\u003c/java.version>\n        \u003cproject.build.sourceEncoding>UTF-8\u003c/project.build.sourceEncoding>\n        \u003cproject.reporting.outputEncoding>UTF-8\u003c/project.reporting.outputEncoding>\n    \u003c/properties>\n\n    \u003cdependencies>\n        \u003cdependency>\n            \u003cgroupId>org.springframework.boot\u003c/groupId>\n            \u003cartifactId>spring-boot-starter-web\u003c/artifactId>\n        \u003c/dependency>\n\n        \u003cdependency>\n            \u003cgroupId>org.springframework.boot\u003c/groupId>\n            \u003cartifactId>spring-boot-starter-validation\u003c/artifactId>\n        \u003c/dependency>\n\n        \u003cdependency>\n            \u003cgroupId>org.springframework.boot\u003c/groupId>\n            \u003cartifactId>spring-boot-starter-test\u003c/artifactId>\n            \u003cscope>test\u003c/scope>\n        \u003c/dependency>\n    \u003c/dependencies>\n\n    \u003cbuild>\n        \u003cplugins>\n            \u003cplugin>\n                \u003cgroupId>org.springframework.boot\u003c/groupId>\n                \u003cartifactId>spring-boot-maven-plugin\u003c/artifactId>\n            \u003c/plugin>\n        \u003c/plugins>\n    \u003c/build>\n\n\u003c/project>\n"},{"id":"f1","group":"后端 · Spring Boot","rel":"src/main/resources/application.yml","label":"application.yml","note":"应用配置","lang":"yaml","lines":17,"size":215,"code":"spring:\n  application:\n    name: ai-health\n\nserver:\n  port: 8080\n  servlet:\n    encoding:\n      charset: UTF-8\n      enabled: true\n      force: true\n\nlogging:\n  level:\n    root: INFO\n    com.example.aihealth: DEBUG\n"},{"id":"f2","group":"后端 · Spring Boot","rel":"src/main/java/com/example/aihealth/AiHealthApplication.java","label":"AiHealthApplication.java","note":"启动类","lang":"java","lines":19,"size":578,"code":"package com.example.aihealth;\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n\n/**\n * Ai 心理健康平台启动类。\n *\n * \u003cp>位于 com.example.aihealth 根包，Spring Boot 会自动扫描本包及其所有子包\n * （controller / service / mapper / config 等），因此业务代码都必须建在此包之下。\u003c/p>\n */\n@SpringBootApplication\npublic class AiHealthApplication {\n\n    public static void main(String[] args) {\n        SpringApplication.run(AiHealthApplication.class, args);\n    }\n}\n"},{"id":"f3","group":"后端 · Spring Boot","rel":"src/main/java/com/example/aihealth/controller/DashboardController.java","label":"controller/DashboardController.java","note":"数据看板接口","lang":"java","lines":54,"size":2318,"code":"package com.example.aihealth.controller;\n\nimport com.example.aihealth.dto.DashboardStats;\nimport java.util.List;\nimport org.springframework.web.bind.annotation.GetMapping;\nimport org.springframework.web.bind.annotation.RequestMapping;\nimport org.springframework.web.bind.annotation.RestController;\n\n/**\n * 数据分析首页接口。\n *\n * \u003cp>当前返回演示数据，用于打通前后端链路；接入数据库后，\n * 只需把 {@link #stats()} 内部的构造换成真实查询结果，前端无需改动。\u003c/p>\n */\n@RestController\n@RequestMapping(\"/api/dashboard\")\npublic class DashboardController {\n\n    @GetMapping(\"/stats\")\n    public DashboardStats stats() {\n        List\u003cString> dates = List.of(\n                \"2026-01-05\", \"2026-01-08\", \"2026-01-11\", \"2026-01-14\",\n                \"2026-01-17\", \"2026-01-20\", \"2026-01-23\", \"2026-01-26\", \"2026-01-29\"\n        );\n\n        List\u003cDashboardStats.StatCard> cards = List.of(\n                new DashboardStats.StatCard(\"user\", \"总用户数\", \"3\", \"活跃用户：2\"),\n                new DashboardStats.StatCard(\"emotion\", \"情绪日志\", \"2\", \"今日新增：0\"),\n                new DashboardStats.StatCard(\"session\", \"咨询会话\", \"8\", \"今日新增：0\"),\n                new DashboardStats.StatCard(\"mood\", \"平均情绪\", \"7.5/10\", \"情绪健康指数\")\n        );\n\n        DashboardStats.MoodTrend moodTrend = new DashboardStats.MoodTrend(\n                List.of(0.2, 0.15, 0.2, 0.3, 0.25, 7.4, 0.3, 7.6, 0.35),\n                List.of(0.03, 0.02, 0.04, 0.03, 0.02, 0.05, 0.04, 0.02, 0.03)\n        );\n\n        DashboardStats.ConsultSummary consult = new DashboardStats.ConsultSummary(\n                8, 22815.6, 2,\n                List.of(0.0, 0.0, 0.0, 0.0, 0.4, 0.0, 2.6, 3.0, 0.0),\n                List.of(0.0, 0.0, 0.0, 0.0, 0.2, 0.0, 0.5, 0.8, 0.0)\n        );\n\n        DashboardStats.ActiveTrend activeTrend = new DashboardStats.ActiveTrend(\n                List.of(0.0, 0.05, 0.02, 0.03, 0.02, 0.04, 0.95, 0.1, 0.02),\n                List.of(0.0, 0.02, 0.01, 0.02, 0.01, 0.02, 0.6, 0.15, 0.03),\n                List.of(0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.75, 0.05, 0.0),\n                List.of(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.85, 0.2, 0.05)\n        );\n\n        return new DashboardStats(cards, dates, moodTrend, consult, activeTrend);\n    }\n}\n"},{"id":"f4","group":"后端 · Spring Boot","rel":"src/main/java/com/example/aihealth/dto/DashboardStats.java","label":"dto/DashboardStats.java","note":"响应数据结构","lang":"java","lines":44,"size":1174,"code":"package com.example.aihealth.dto;\n\nimport java.util.List;\n\n/**\n * 数据分析首页的统计数据结构。\n * 目前由 DashboardController 返回演示数据，后续接入数据库后替换实现即可。\n */\npublic record DashboardStats(\n        List\u003cStatCard> statCards,\n        List\u003cString> dates,\n        MoodTrend moodTrend,\n        ConsultSummary consult,\n        ActiveTrend activeTrend\n) {\n\n    /** 顶部统计卡片，key 用于前端匹配图标与颜色 */\n    public record StatCard(String key, String label, String value, String extra) {\n    }\n\n    /** 情绪趋势：左轴评分、右轴记录数量 */\n    public record MoodTrend(List\u003cDouble> score, List\u003cDouble> count) {\n    }\n\n    /** 咨询会话统计 */\n    public record ConsultSummary(\n            int total,\n            double avgDuration,\n            int activeUsers,\n            List\u003cDouble> sessionCount,\n            List\u003cDouble> participantCount\n    ) {\n    }\n\n    /** 用户活跃趋势的四条曲线 */\n    public record ActiveTrend(\n            List\u003cDouble> active,\n            List\u003cDouble> newUser,\n            List\u003cDouble> logUser,\n            List\u003cDouble> consultUser\n    ) {\n    }\n}\n"},{"id":"f5","group":"前端 · 工程配置","rel":"frontend/index.html","label":"index.html","note":"HTML 模板","lang":"xml","lines":13,"size":303,"code":"\u003c!DOCTYPE html>\n\u003chtml lang=\"zh-CN\">\n  \u003chead>\n    \u003cmeta charset=\"UTF-8\" />\n    \u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    \u003ctitle>Ai 心理健康\u003c/title>\n  \u003c/head>\n  \u003cbody>\n    \u003cdiv id=\"app\">\u003c/div>\n    \u003cscript type=\"module\" src=\"/src/main.js\">\u003c/script>\n  \u003c/body>\n\u003c/html>\n"},{"id":"f6","group":"前端 · 工程配置","rel":"frontend/package.json","label":"package.json","note":"依赖与脚本","lang":"json","lines":26,"size":553,"code":"{\n  \"name\": \"aihealth-frontend\",\n  \"private\": true,\n  \"version\": \"0.1.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\",\n    \"preview\": \"vite preview\"\n  },\n  \"dependencies\": {\n    \"@element-plus/icons-vue\": \"^2.3.2\",\n    \"axios\": \"^1.20.0\",\n    \"echarts\": \"^6.1.0\",\n    \"element-plus\": \"^2.14.7\",\n    \"vue\": \"^3.5.44\",\n    \"vue-router\": \"^5.4.0\"\n  },\n  \"devDependencies\": {\n    \"@vitejs/plugin-vue\": \"^6.0.10\",\n    \"unplugin-auto-import\": \"^21.1.0\",\n    \"unplugin-vue-components\": \"^32.1.0\",\n    \"vite\": \"^8.3.5\"\n  }\n}\n"},{"id":"f7","group":"前端 · 工程配置","rel":"frontend/vite.config.js","label":"vite.config.js","note":"构建与代理配置","lang":"js","lines":40,"size":1113,"code":"import { fileURLToPath, URL } from 'node:url'\nimport { defineConfig } from 'vite'\nimport vue from '@vitejs/plugin-vue'\nimport AutoImport from 'unplugin-auto-import/vite'\nimport Components from 'unplugin-vue-components/vite'\nimport { ElementPlusResolver } from 'unplugin-vue-components/resolvers'\n\n// Element Plus 采用\"按需自动导入\"：模板里直接写 \u003cel-button> 即可，\n// 组件与样式由 unplugin 自动注入，无需在 main.js 里 app.use(ElementPlus)。\nexport default defineConfig({\n  plugins: [\n    vue(),\n    AutoImport({\n      imports: ['vue', 'vue-router'],\n      resolvers: [ElementPlusResolver()],\n      dts: 'src/auto-imports.d.ts'\n    }),\n    Components({\n      resolvers: [ElementPlusResolver()],\n      dts: 'src/components.d.ts'\n    })\n  ],\n  resolve: {\n    alias: {\n      '@': fileURLToPath(new URL('./src', import.meta.url))\n    }\n  },\n  server: {\n    port: 5173,\n    open: false,\n    proxy: {\n      // 前端 /api/xxx -> 后端 http://localhost:8080/api/xxx，避免跨域\n      '/api': {\n        target: 'http://localhost:8080',\n        changeOrigin: true\n      }\n    }\n  }\n})\n"},{"id":"f8","group":"前端 · 入口与样式","rel":"frontend/src/main.js","label":"src/main.js","note":"应用入口","lang":"js","lines":10,"size":305,"code":"import { createApp } from 'vue'\nimport App from './App.vue'\nimport router from './router/index.js'\nimport './styles/base.css'\n\n// Element Plus 由 vite.config.js 里的 unplugin 按需自动导入，\n// 这里不需要 import ElementPlus 或注册样式文件。\n\ncreateApp(App).use(router).mount('#app')\n"},{"id":"f9","group":"前端 · 入口与样式","rel":"frontend/src/App.vue","label":"src/App.vue","note":"根组件","lang":"vue","lines":9,"size":185,"code":"\u003ctemplate>\n  \u003crouter-view />\n\u003c/template>\n\n\u003cscript setup>\n// 根组件只负责渲染路由匹配到的页面，\n// 具体页面内容放在 src/component 或 src/views 下。\n\u003c/script>\n"},{"id":"f10","group":"前端 · 入口与样式","rel":"frontend/src/styles/base.css","label":"src/styles/base.css","note":"全局样式","lang":"css","lines":22,"size":421,"code":"/* 全局基础样式：Element Plus 是按需引入的，不会重置 body 默认的 8px 外边距 */\nhtml,\nbody,\n#app {\n  height: 100%;\n  margin: 0;\n  padding: 0;\n  overflow: hidden;\n}\n\nbody {\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',\n    'Microsoft YaHei', sans-serif;\n  color: #1f2430;\n  background: #f5f7fa;\n  -webkit-font-smoothing: antialiased;\n}\n\n* {\n  scrollbar-width: thin;\n}\n"},{"id":"f11","group":"前端 · 路由与接口","rel":"frontend/src/router/index.js","label":"src/router/index.js","note":"路由表","lang":"js","lines":50,"size":1213,"code":"import { createRouter, createWebHistory } from 'vue-router'\nimport Backendlayout from '../component/Backendlayout.vue'\n\n// 路由配置：path / name / title 需与 layout 里 menus 数组保持一致\nconst backendRoutes = [\n  {\n    path: '/',\n    redirect: '/back/dashboard'\n  },\n  {\n    path: '/back',\n    name: 'Backend',\n    component: Backendlayout,\n    redirect: '/back/dashboard',\n    children: [\n      {\n        path: 'dashboard',\n        name: 'Dashboard',\n        component: () => import('../views/dashboard.vue'),\n        meta: { title: '数据分析' }\n      },\n      {\n        path: 'knowledge',\n        name: 'Knowledge',\n        component: () => import('../views/knowledge.vue'),\n        meta: { title: '知识文章' }\n      },\n      {\n        path: 'consultation',\n        name: 'Consultation',\n        component: () => import('../views/consultation.vue'),\n        meta: { title: '咨询管理' }\n      },\n      {\n        path: 'emotion',\n        name: 'Emotion',\n        component: () => import('../views/emotionLog.vue'),\n        meta: { title: '情绪日志' }\n      }\n    ]\n  }\n]\n\nconst router = createRouter({\n  history: createWebHistory(),\n  routes: backendRoutes\n})\n\nexport default router\n"},{"id":"f12","group":"前端 · 路由与接口","rel":"frontend/src/api/request.js","label":"src/api/request.js","note":"axios 封装","lang":"js","lines":49,"size":1319,"code":"import axios from 'axios'\nimport { ElMessage } from 'element-plus'\n\n// 统一的 axios 实例：baseURL 走 vite 代理，/api -> http://localhost:8080\nconst request = axios.create({\n  baseURL: '/api',\n  timeout: 10000\n})\n\n// 请求拦截：统一带上 token（登录功能接入后即可生效）\nrequest.interceptors.request.use(\n  (config) => {\n    const token = localStorage.getItem('token')\n    if (token) {\n      config.headers.Authorization = `Bearer ${token}`\n    }\n    return config\n  },\n  (error) => Promise.reject(error)\n)\n\n// 响应拦截：直接返回 data，错误统一转成中文提示\nrequest.interceptors.response.use(\n  (response) => response.data,\n  (error) => {\n    const status = error.response?.status\n    let msg\n\n    if (!error.response) {\n      msg = '网络异常，无法连接后端服务'\n    } else if (status === 401) {\n      msg = '登录已过期，请重新登录'\n    } else if (status === 403) {\n      msg = '没有访问权限'\n    } else if (status === 404) {\n      msg = '接口不存在，请检查路径'\n    } else if (status >= 500) {\n      msg = '后端服务异常，请确认服务已启动'\n    } else {\n      msg = error.response?.data?.message || '请求失败'\n    }\n\n    ElMessage.error(msg)\n    return Promise.reject(new Error(msg))\n  }\n)\n\nexport default request\n"},{"id":"f13","group":"前端 · 路由与接口","rel":"frontend/src/api/dashboard.js","label":"src/api/dashboard.js","note":"看板接口调用","lang":"js","lines":7,"size":176,"code":"import request from './request'\n\n/** 数据分析首页统计（GET /api/dashboard/stats） */\nexport function getDashboardStats() {\n  return request.get('/dashboard/stats')\n}\n"},{"id":"f14","group":"前端 · 布局组件","rel":"frontend/src/component/Backendlayout.vue","label":"src/component/Backendlayout.vue","note":"后台布局（路由实际引用）","lang":"vue","lines":254,"size":5310,"code":"\u003ctemplate>\n  \u003cel-container class=\"layout\">\n    \u003c!-- ===== 左侧导航栏 ===== -->\n    \u003cel-aside class=\"aside\" :width=\"isCollapse ? '64px' : '200px'\">\n      \u003cdiv class=\"logo\">\n        \u003cdiv class=\"logo-icon\">\n          \u003csvg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n            \u003crect x=\"3.5\" y=\"5.5\" width=\"17\" height=\"12\" rx=\"3\" />\n            \u003cpath d=\"M9 20.5h6\" />\n            \u003ccircle cx=\"9.2\" cy=\"11.5\" r=\"1\" fill=\"#ffffff\" stroke=\"none\" />\n            \u003ccircle cx=\"14.8\" cy=\"11.5\" r=\"1\" fill=\"#ffffff\" stroke=\"none\" />\n          \u003c/svg>\n        \u003c/div>\n        \u003cdiv v-show=\"!isCollapse\" class=\"logo-text\">\n          \u003cdiv class=\"logo-title\">心理健康AI助手\u003c/div>\n          \u003cdiv class=\"logo-sub\">管理后台\u003c/div>\n        \u003c/div>\n      \u003c/div>\n\n      \u003c!-- 菜单由 menus 数组驱动，与 router 的 children 一一对应 -->\n      \u003cel-menu\n        class=\"menu\"\n        :default-active=\"activeMenu\"\n        :collapse=\"isCollapse\"\n        :collapse-transition=\"false\"\n        router\n      >\n        \u003cel-menu-item v-for=\"item in menus\" :key=\"item.path\" :index=\"item.path\">\n          \u003cel-icon>\n            \u003ccomponent :is=\"item.icon\" />\n          \u003c/el-icon>\n          \u003ctemplate #title>{{ item.title }}\u003c/template>\n        \u003c/el-menu-item>\n      \u003c/el-menu>\n    \u003c/el-aside>\n\n    \u003c!-- ===== 右侧内容区 ===== -->\n    \u003cel-container class=\"right\">\n      \u003cel-header class=\"header\">\n        \u003cdiv class=\"header-left\">\n          \u003cel-icon class=\"toggle\" @click=\"isCollapse = !isCollapse\">\n            \u003cExpand v-if=\"isCollapse\" />\n            \u003cFold v-else />\n          \u003c/el-icon>\n          \u003cspan class=\"page-title\">{{ pageTitle }}\u003c/span>\n        \u003c/div>\n\n        \u003cel-dropdown trigger=\"click\">\n          \u003cspan class=\"user-box\">\n            \u003cel-avatar :size=\"26\" class=\"avatar\">A\u003c/el-avatar>\n            \u003cspan class=\"username\">admin\u003c/span>\n            \u003cel-icon class=\"caret\">\u003cArrowDown />\u003c/el-icon>\n          \u003c/span>\n          \u003ctemplate #dropdown>\n            \u003cel-dropdown-menu>\n              \u003cel-dropdown-item>退出登录\u003c/el-dropdown-item>\n            \u003c/el-dropdown-menu>\n          \u003c/template>\n        \u003c/el-dropdown>\n      \u003c/el-header>\n\n      \u003cel-main class=\"main\">\n        \u003crouter-view />\n      \u003c/el-main>\n    \u003c/el-container>\n  \u003c/el-container>\n\u003c/template>\n\n\u003cscript setup>\nimport { computed, ref } from 'vue'\nimport { useRoute } from 'vue-router'\nimport {\n  ArrowDown,\n  ChatLineSquare,\n  DataAnalysis,\n  Expand,\n  Fold,\n  Message,\n  User\n} from '@element-plus/icons-vue'\n\nconst route = useRoute()\nconst isCollapse = ref(false)\n\nconst menus = [\n  { path: '/back/dashboard', title: '数据分析', icon: DataAnalysis },\n  { path: '/back/knowledge', title: '知识文章', icon: ChatLineSquare },\n  { path: '/back/consultation', title: '咨询管理', icon: Message },\n  { path: '/back/emotion', title: '情绪日志', icon: User }\n]\n\nconst activeMenu = computed(() => route.path)\nconst pageTitle = computed(() => route.meta?.title || '数据分析')\n\u003c/script>\n\n\u003cstyle scoped>\n.layout {\n  height: 100%;\n  overflow: hidden;\n}\n\n.aside {\n  height: 100%;\n  background: #fbfcff;\n  border-right: 1px solid #eef0f5;\n  display: flex;\n  flex-direction: column;\n  transition: width 0.2s ease;\n  overflow: hidden;\n}\n\n.logo {\n  height: 64px;\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  padding: 0 15px;\n  flex-shrink: 0;\n}\n\n.logo-icon {\n  width: 34px;\n  height: 34px;\n  flex: 0 0 34px;\n  border-radius: 9px;\n  background: #2fb6c8;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 7px;\n  box-sizing: border-box;\n}\n\n.logo-text {\n  overflow: hidden;\n  white-space: nowrap;\n}\n\n.logo-title {\n  font-size: 14px;\n  font-weight: 600;\n  color: #1f2430;\n  line-height: 1.2;\n}\n\n.logo-sub {\n  font-size: 11px;\n  color: #9aa0ac;\n  margin-top: 3px;\n}\n\n.menu {\n  border-right: none;\n  background: transparent;\n  padding: 4px 10px;\n  flex: 1;\n}\n\n.menu :deep(.el-menu-item) {\n  height: 44px;\n  line-height: 44px;\n  border-radius: 8px;\n  margin-bottom: 6px;\n  color: #5c6270;\n  font-size: 14px;\n}\n\n.menu :deep(.el-menu-item:hover) {\n  background: #f2f4fa;\n}\n\n.menu :deep(.el-menu-item.is-active) {\n  background: #eef0fe;\n  color: #5b6ef5;\n  font-weight: 500;\n}\n\n.menu :deep(.el-menu-item .el-icon) {\n  font-size: 17px;\n  width: 17px;\n  margin-right: 10px;\n  flex-shrink: 0;\n}\n\n/* 折叠时图标居中，不保留右侧留白 */\n.menu.el-menu--collapse :deep(.el-menu-item .el-icon) {\n  margin-right: 0;\n}\n\n/* ---- 顶栏 ---- */\n.right {\n  min-width: 0;\n}\n\n.header {\n  height: 58px;\n  background: #ffffff;\n  border-bottom: 1px solid #eef0f5;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0 20px;\n}\n\n.header-left {\n  display: flex;\n  align-items: center;\n  gap: 14px;\n}\n\n.toggle {\n  font-size: 19px;\n  color: #606266;\n  cursor: pointer;\n}\n\n.page-title {\n  font-size: 19px;\n  font-weight: 600;\n  color: #1f2430;\n}\n\n.user-box {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  cursor: pointer;\n  outline: none;\n}\n\n.avatar {\n  background: #e8ecff;\n  color: #5b6ef5;\n  font-size: 13px;\n}\n\n.username {\n  font-size: 14px;\n  color: #303133;\n}\n\n.caret {\n  font-size: 14px;\n  color: #909399;\n}\n\n/* ---- 内容区 ---- */\n.main {\n  background: #f5f7fa;\n  padding: 16px;\n  overflow-y: auto;\n}\n\u003c/style>\n"},{"id":"f15","group":"前端 · 布局组件","rel":"frontend/src/components/Backendlayout.vue","label":"src/components/Backendlayout.vue","note":"后台布局（疑似重复残留）","lang":"vue","lines":5,"size":64,"code":"\u003ctemplate>\n   \u003cdiv>\n    我是后台组件\n   \u003c/div>\n\u003c/template>"},{"id":"f16","group":"前端 · 页面视图","rel":"frontend/src/views/dashboard.vue","label":"src/views/dashboard.vue","note":"数据分析","lang":"vue","lines":436,"size":10716,"code":"\u003ctemplate>\n  \u003cdiv class=\"dashboard\">\n    \u003c!-- 加载中 -->\n    \u003cdiv v-if=\"loading\" class=\"panel\">\n      \u003cel-skeleton :rows=\"9\" animated />\n    \u003c/div>\n\n    \u003c!-- 加载失败 -->\n    \u003cel-result\n      v-else-if=\"error\"\n      icon=\"warning\"\n      title=\"数据加载失败\"\n      :sub-title=\"error\"\n    >\n      \u003ctemplate #extra>\n        \u003cel-button type=\"primary\" @click=\"load\">重新加载\u003c/el-button>\n      \u003c/template>\n    \u003c/el-result>\n\n    \u003c!-- 正常内容 -->\n    \u003ctemplate v-else-if=\"stats\">\n      \u003c!-- ===== 顶部四个统计卡片 ===== -->\n      \u003cel-row :gutter=\"16\" class=\"stat-row\">\n        \u003cel-col :span=\"6\" v-for=\"item in stats.statCards\" :key=\"item.key\">\n          \u003cdiv class=\"stat-card\">\n            \u003cdiv\n              class=\"stat-icon\"\n              :style=\"{ background: COLORS[item.key] || '#7c6cf5' }\"\n            >\n              \u003csvg\n                viewBox=\"0 0 24 24\"\n                fill=\"none\"\n                stroke=\"#ffffff\"\n                stroke-width=\"1.7\"\n                stroke-linecap=\"round\"\n                stroke-linejoin=\"round\"\n              >\n                \u003cpath :d=\"ICONS[item.key] || ICONS.user\" />\n              \u003c/svg>\n            \u003c/div>\n            \u003cdiv class=\"stat-body\">\n              \u003cdiv class=\"stat-label\">{{ item.label }}\u003c/div>\n              \u003cdiv class=\"stat-value\">{{ item.value }}\u003c/div>\n              \u003cdiv class=\"stat-extra\">{{ item.extra }}\u003c/div>\n            \u003c/div>\n          \u003c/div>\n        \u003c/el-col>\n      \u003c/el-row>\n\n      \u003c!-- ===== 趋势 + 会话统计 ===== -->\n      \u003cel-row :gutter=\"16\" class=\"chart-row\">\n        \u003cel-col :span=\"12\">\n          \u003cdiv class=\"panel\">\n            \u003cdiv class=\"panel-title\">情绪趋势分析\u003c/div>\n            \u003cdiv ref=\"moodRef\" class=\"chart chart-lg\">\u003c/div>\n          \u003c/div>\n        \u003c/el-col>\n\n        \u003cel-col :span=\"12\">\n          \u003cdiv class=\"panel\">\n            \u003cdiv class=\"panel-title\">咨询会话统计\u003c/div>\n            \u003cdiv class=\"mini-stats\">\n              \u003cdiv class=\"mini-item\">\n                \u003cdiv class=\"mini-label\">总会话数\u003c/div>\n                \u003cdiv class=\"mini-value\">{{ stats.consult.total }}\u003c/div>\n              \u003c/div>\n              \u003cdiv class=\"mini-item\">\n                \u003cdiv class=\"mini-label\">平均时长\u003c/div>\n                \u003cdiv class=\"mini-value\">\n                  {{ stats.consult.avgDuration }}\u003cspan class=\"mini-unit\">分钟\u003c/span>\n                \u003c/div>\n              \u003c/div>\n              \u003cdiv class=\"mini-item\">\n                \u003cdiv class=\"mini-label\">活跃用户\u003c/div>\n                \u003cdiv class=\"mini-value\">{{ stats.consult.activeUsers }}\u003c/div>\n              \u003c/div>\n            \u003c/div>\n            \u003cdiv class=\"sub-title\">咨询活动统计\u003c/div>\n            \u003cdiv ref=\"consultRef\" class=\"chart chart-sm\">\u003c/div>\n          \u003c/div>\n        \u003c/el-col>\n      \u003c/el-row>\n\n      \u003c!-- ===== 用户活跃趋势 ===== -->\n      \u003cdiv class=\"panel\">\n        \u003cdiv class=\"panel-title\">用户活跃趋势\u003c/div>\n        \u003cdiv ref=\"activeRef\" class=\"chart chart-lg\">\u003c/div>\n      \u003c/div>\n    \u003c/template>\n  \u003c/div>\n\u003c/template>\n\n\u003cscript setup>\nimport { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'\nimport * as echarts from 'echarts/core'\nimport { BarChart, LineChart } from 'echarts/charts'\nimport { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'\nimport { CanvasRenderer } from 'echarts/renderers'\nimport { getDashboardStats } from '../api/dashboard'\n\n// 按需注册，避免把整个 echarts 打进包里\necharts.use([LineChart, BarChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])\n\nconst ICONS = {\n  user: 'M9 10.5a3 3 0 100-6 3 3 0 000 6M3.5 19.5c0-3 2.5-4.8 5.5-4.8s5.5 1.8 5.5 4.8M16 5.2a2.8 2.8 0 010 5.2M17.5 19.5c0-2.2-.7-3.7-1.8-4.6',\n  emotion: 'M12 20.2s-7.2-4.4-7.2-9.2a4.1 4.1 0 017.2-2.6 4.1 4.1 0 017.2 2.6c0 4.8-7.2 9.2-7.2 9.2z',\n  session: 'M4 5.5h16v10H9.5L4 19.5z',\n  mood: 'M12 4a8 8 0 100 16 8 8 0 000-16M8.8 14.2c.8 1.2 1.9 1.8 3.2 1.8s2.4-.6 3.2-1.8'\n}\n\nconst COLORS = {\n  user: '#7c6cf5',\n  emotion: '#f56a9e',\n  session: '#29c2df',\n  mood: '#4bd07a'\n}\n\nconst loading = ref(true)\nconst error = ref('')\nconst stats = ref(null)\n\nconst moodRef = ref(null)\nconst consultRef = ref(null)\nconst activeRef = ref(null)\nlet charts = []\n\nconst axisCommon = (dates) => ({\n  type: 'category',\n  data: dates,\n  axisLine: { lineStyle: { color: '#e8eaef' } },\n  axisTick: { show: false },\n  axisLabel: { color: '#9aa0ac', fontSize: 11, interval: 1 }\n})\n\nconst legendCommon = {\n  top: 0,\n  itemWidth: 12,\n  itemHeight: 8,\n  icon: 'circle',\n  textStyle: { color: '#8a8f9c', fontSize: 12 }\n}\n\nconst tooltipCommon = {\n  trigger: 'axis',\n  axisPointer: { type: 'line', lineStyle: { color: '#dfe2ea' } }\n}\n\nfunction buildMoodChart(data) {\n  return {\n    tooltip: tooltipCommon,\n    legend: { ...legendCommon, data: ['平均情绪评分', '记录数量'] },\n    grid: { left: 34, right: 34, top: 46, bottom: 28 },\n    xAxis: { ...axisCommon(data.dates), boundaryGap: false },\n    yAxis: [\n      {\n        type: 'value',\n        min: 0,\n        max: 8,\n        interval: 2,\n        splitLine: { lineStyle: { color: '#f2f3f7' } },\n        axisLabel: { color: '#9aa0ac', fontSize: 11 }\n      },\n      {\n        type: 'value',\n        min: 0,\n        max: 1,\n        interval: 0.2,\n        splitLine: { show: false },\n        axisLabel: { color: '#9aa0ac', fontSize: 11 }\n      }\n    ],\n    series: [\n      {\n        name: '平均情绪评分',\n        type: 'line',\n        smooth: 0.3,\n        symbol: 'circle',\n        symbolSize: 5,\n        data: data.moodTrend.score,\n        itemStyle: { color: '#f5a623' },\n        lineStyle: { width: 2 }\n      },\n      {\n        name: '记录数量',\n        type: 'line',\n        yAxisIndex: 1,\n        smooth: 0.3,\n        symbol: 'circle',\n        symbolSize: 5,\n        data: data.moodTrend.count,\n        itemStyle: { color: '#c8cbd4' },\n        lineStyle: { width: 2 }\n      }\n    ]\n  }\n}\n\nfunction buildConsultChart(data) {\n  return {\n    tooltip: tooltipCommon,\n    legend: { ...legendCommon, data: ['会话数量', '参与用户数'] },\n    grid: { left: 34, right: 20, top: 42, bottom: 26 },\n    xAxis: axisCommon(data.dates),\n    yAxis: {\n      type: 'value',\n      min: 0,\n      max: 3.5,\n      interval: 0.5,\n      splitLine: { lineStyle: { color: '#f2f3f7' } },\n      axisLabel: { color: '#9aa0ac', fontSize: 11 }\n    },\n    series: [\n      {\n        name: '会话数量',\n        type: 'bar',\n        barWidth: 6,\n        data: data.consult.sessionCount,\n        itemStyle: { color: '#5b8ff9', borderRadius: [3, 3, 0, 0] }\n      },\n      {\n        name: '参与用户数',\n        type: 'bar',\n        barWidth: 6,\n        data: data.consult.participantCount,\n        itemStyle: { color: '#f6bd16', borderRadius: [3, 3, 0, 0] }\n      }\n    ]\n  }\n}\n\nfunction buildActiveChart(data) {\n  return {\n    tooltip: tooltipCommon,\n    legend: {\n      ...legendCommon,\n      data: ['活跃用户', '新增用户', '日志用户', '咨询用户']\n    },\n    grid: { left: 34, right: 24, top: 46, bottom: 28 },\n    xAxis: { ...axisCommon(data.dates), boundaryGap: false },\n    yAxis: {\n      type: 'value',\n      min: 0,\n      max: 1,\n      interval: 0.2,\n      splitLine: { lineStyle: { color: '#f2f3f7' } },\n      axisLabel: { color: '#9aa0ac', fontSize: 11 }\n    },\n    series: [\n      { name: '活跃用户', type: 'line', smooth: 0.3, symbol: 'circle', symbolSize: 5, data: data.activeTrend.active, itemStyle: { color: '#5b8ff9' }, lineStyle: { width: 2 } },\n      { name: '新增用户', type: 'line', smooth: 0.3, symbol: 'circle', symbolSize: 5, data: data.activeTrend.newUser, itemStyle: { color: '#f6bd16' }, lineStyle: { width: 2 } },\n      { name: '日志用户', type: 'line', smooth: 0.3, symbol: 'circle', symbolSize: 5, data: data.activeTrend.logUser, itemStyle: { color: '#5ad8a6' }, lineStyle: { width: 2 } },\n      { name: '咨询用户', type: 'line', smooth: 0.3, symbol: 'circle', symbolSize: 5, data: data.activeTrend.consultUser, itemStyle: { color: '#ff9845' }, lineStyle: { width: 2 } }\n    ]\n  }\n}\n\nfunction disposeCharts() {\n  charts.forEach((chart) => chart.dispose())\n  charts = []\n}\n\nfunction renderCharts() {\n  disposeCharts()\n  const data = stats.value\n  if (!data) return\n\n  charts = [\n    [moodRef.value, buildMoodChart(data)],\n    [consultRef.value, buildConsultChart(data)],\n    [activeRef.value, buildActiveChart(data)]\n  ]\n    .filter(([el]) => el)\n    .map(([el, option]) => {\n      const instance = echarts.init(el)\n      instance.setOption(option)\n      return instance\n    })\n}\n\nfunction handleResize() {\n  charts.forEach((chart) => chart.resize())\n}\n\nasync function load() {\n  loading.value = true\n  error.value = ''\n  try {\n    stats.value = await getDashboardStats()\n    loading.value = false\n    await nextTick()\n    renderCharts()\n  } catch (e) {\n    loading.value = false\n    error.value = e?.message || '无法连接后端服务'\n  }\n}\n\nonMounted(() => {\n  load()\n  window.addEventListener('resize', handleResize)\n})\n\nonBeforeUnmount(() => {\n  window.removeEventListener('resize', handleResize)\n  disposeCharts()\n})\n\u003c/script>\n\n\u003cstyle scoped>\n.dashboard {\n  padding-bottom: 8px;\n}\n\n.stat-row {\n  margin-bottom: 16px;\n}\n\n.stat-card {\n  background: #ffffff;\n  border-radius: 10px;\n  padding: 18px;\n  display: flex;\n  align-items: center;\n  gap: 14px;\n  height: 100%;\n  box-sizing: border-box;\n}\n\n.stat-icon {\n  width: 46px;\n  height: 46px;\n  flex: 0 0 46px;\n  border-radius: 12px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 11px;\n  box-sizing: border-box;\n}\n\n.stat-icon svg {\n  width: 100%;\n  height: 100%;\n}\n\n.stat-body {\n  min-width: 0;\n}\n\n.stat-label {\n  font-size: 13px;\n  color: #909399;\n}\n\n.stat-value {\n  font-size: 23px;\n  font-weight: 600;\n  color: #1f2430;\n  line-height: 1.35;\n}\n\n.stat-extra {\n  font-size: 12px;\n  color: #b0b4bd;\n}\n\n.chart-row {\n  margin-bottom: 16px;\n}\n\n.panel {\n  background: #ffffff;\n  border-radius: 10px;\n  padding: 16px 18px 10px;\n  box-sizing: border-box;\n  height: 100%;\n}\n\n.panel-title {\n  font-size: 15px;\n  font-weight: 600;\n  color: #1f2430;\n  padding-bottom: 12px;\n  border-bottom: 1px solid #f0f2f5;\n}\n\n.chart {\n  width: 100%;\n}\n\n.chart-lg {\n  height: 268px;\n}\n\n.chart-sm {\n  height: 200px;\n}\n\n.mini-stats {\n  display: flex;\n  justify-content: space-around;\n  padding: 16px 0 8px;\n}\n\n.mini-item {\n  text-align: center;\n}\n\n.mini-label {\n  font-size: 12px;\n  color: #909399;\n}\n\n.mini-value {\n  font-size: 19px;\n  font-weight: 600;\n  color: #1f2430;\n  margin-top: 4px;\n}\n\n.mini-unit {\n  font-size: 11px;\n  font-weight: 400;\n  color: #909399;\n  margin-left: 2px;\n}\n\n.sub-title {\n  text-align: center;\n  font-size: 13px;\n  font-weight: 500;\n  color: #303133;\n  padding-top: 6px;\n}\n\u003c/style>\n"},{"id":"f17","group":"前端 · 页面视图","rel":"frontend/src/views/knowledge.vue","label":"src/views/knowledge.vue","note":"知识文章","lang":"vue","lines":5,"size":67,"code":"\u003ctemplate>\n   \u003cdiv>\n    \u003ch1>知识文章\u003c/h1>\n   \u003c/div>\n\u003c/template>"},{"id":"f18","group":"前端 · 页面视图","rel":"frontend/src/views/consultation.vue","label":"src/views/consultation.vue","note":"咨询管理","lang":"vue","lines":5,"size":67,"code":"\u003ctemplate>\n   \u003cdiv>\n    \u003ch1>咨询管理\u003c/h1>\n   \u003c/div>\n\u003c/template>"},{"id":"f19","group":"前端 · 页面视图","rel":"frontend/src/views/emotionLog.vue","label":"src/views/emotionLog.vue","note":"情绪日志","lang":"vue","lines":5,"size":58,"code":"\u003ctemplate>\n   \u003cdiv>\n    情绪日志\n   \u003c/div>\n\u003c/template>"},{"id":"f20","group":"前端 · 页面视图","rel":"frontend/src/views/consuemotionallations.vue","label":"src/views/consuemotionallations.vue","note":"命名异常，疑似未使用","lang":"vue","lines":5,"size":67,"code":"\u003ctemplate>\n   \u003cdiv>\n    \u003ch1>情绪日志\u003c/h1>\n   \u003c/div>\n\u003c/template>"},{"id":"f21","group":"自动生成的类型声明","rel":"frontend/src/auto-imports.d.ts","label":"src/auto-imports.d.ts","note":"unplugin-auto-import 生成","lang":"ts","lines":81,"size":3980,"code":"/* eslint-disable */\n/* prettier-ignore */\n/* oxlint-disable */\n/* oxfmt-ignore */\n// @ts-nocheck\n// noinspection JSUnusedGlobalSymbols\n// Generated by unplugin-auto-import\n// biome-ignore lint: disable\nexport {}\ndeclare global {\n  const EffectScope: typeof import('vue').EffectScope\n  const computed: typeof import('vue').computed\n  const createApp: typeof import('vue').createApp\n  const customRef: typeof import('vue').customRef\n  const defineAsyncComponent: typeof import('vue').defineAsyncComponent\n  const defineComponent: typeof import('vue').defineComponent\n  const effectScope: typeof import('vue').effectScope\n  const getCurrentInstance: typeof import('vue').getCurrentInstance\n  const getCurrentScope: typeof import('vue').getCurrentScope\n  const getCurrentWatcher: typeof import('vue').getCurrentWatcher\n  const h: typeof import('vue').h\n  const inject: typeof import('vue').inject\n  const isProxy: typeof import('vue').isProxy\n  const isReactive: typeof import('vue').isReactive\n  const isReadonly: typeof import('vue').isReadonly\n  const isRef: typeof import('vue').isRef\n  const isShallow: typeof import('vue').isShallow\n  const markRaw: typeof import('vue').markRaw\n  const nextTick: typeof import('vue').nextTick\n  const onActivated: typeof import('vue').onActivated\n  const onBeforeMount: typeof import('vue').onBeforeMount\n  const onBeforeRouteLeave: typeof import('vue-router').onBeforeRouteLeave\n  const onBeforeRouteUpdate: typeof import('vue-router').onBeforeRouteUpdate\n  const onBeforeUnmount: typeof import('vue').onBeforeUnmount\n  const onBeforeUpdate: typeof import('vue').onBeforeUpdate\n  const onDeactivated: typeof import('vue').onDeactivated\n  const onErrorCaptured: typeof import('vue').onErrorCaptured\n  const onMounted: typeof import('vue').onMounted\n  const onRenderTracked: typeof import('vue').onRenderTracked\n  const onRenderTriggered: typeof import('vue').onRenderTriggered\n  const onScopeDispose: typeof import('vue').onScopeDispose\n  const onServerPrefetch: typeof import('vue').onServerPrefetch\n  const onUnmounted: typeof import('vue').onUnmounted\n  const onUpdated: typeof import('vue').onUpdated\n  const onWatcherCleanup: typeof import('vue').onWatcherCleanup\n  const provide: typeof import('vue').provide\n  const reactive: typeof import('vue').reactive\n  const readonly: typeof import('vue').readonly\n  const ref: typeof import('vue').ref\n  const resolveComponent: typeof import('vue').resolveComponent\n  const shallowReactive: typeof import('vue').shallowReactive\n  const shallowReadonly: typeof import('vue').shallowReadonly\n  const shallowRef: typeof import('vue').shallowRef\n  const toRaw: typeof import('vue').toRaw\n  const toRef: typeof import('vue').toRef\n  const toRefs: typeof import('vue').toRefs\n  const toValue: typeof import('vue').toValue\n  const triggerRef: typeof import('vue').triggerRef\n  const unref: typeof import('vue').unref\n  const useAttrs: typeof import('vue').useAttrs\n  const useCssModule: typeof import('vue').useCssModule\n  const useCssVars: typeof import('vue').useCssVars\n  const useId: typeof import('vue').useId\n  const useLink: typeof import('vue-router').useLink\n  const useModel: typeof import('vue').useModel\n  const useRoute: typeof import('vue-router').useRoute\n  const useRouter: typeof import('vue-router').useRouter\n  const useSlots: typeof import('vue').useSlots\n  const useTemplateRef: typeof import('vue').useTemplateRef\n  const watch: typeof import('vue').watch\n  const watchEffect: typeof import('vue').watchEffect\n  const watchPostEffect: typeof import('vue').watchPostEffect\n  const watchSyncEffect: typeof import('vue').watchSyncEffect\n}\n// for type re-export\ndeclare global {\n  // @ts-ignore\n  export type { Component, Slot, Slots, ComponentPublicInstance, ComputedRef, DirectiveBinding, ExtractDefaultPropTypes, ExtractPropTypes, ExtractPublicPropTypes, InjectionKey, PropType, Ref, ShallowRef, MaybeRef, MaybeRefOrGetter, VNode, WritableComputedRef } from 'vue'\n  import('vue')\n}\n"},{"id":"f22","group":"自动生成的类型声明","rel":"frontend/src/components.d.ts","label":"src/components.d.ts","note":"unplugin-vue-components 生成","lang":"ts","lines":35,"size":1443,"code":"/* eslint-disable */\n// @ts-nocheck\n// biome-ignore lint: disable\n// oxlint-disable\n// ------\n// Generated by unplugin-vue-components\n// Read more: https://github.com/vuejs/core/pull/3399\n\nexport {}\n\n/* prettier-ignore */\ndeclare module 'vue' {\n  export interface GlobalComponents {\n    Backendlayout: typeof import('./components/Backendlayout.vue')['default']\n    ElAside: typeof import('element-plus/es')['ElAside']\n    ElAvatar: typeof import('element-plus/es')['ElAvatar']\n    ElButton: typeof import('element-plus/es')['ElButton']\n    ElCol: typeof import('element-plus/es')['ElCol']\n    ElContainer: typeof import('element-plus/es')['ElContainer']\n    ElDropdown: typeof import('element-plus/es')['ElDropdown']\n    ElDropdownItem: typeof import('element-plus/es')['ElDropdownItem']\n    ElDropdownMenu: typeof import('element-plus/es')['ElDropdownMenu']\n    ElHeader: typeof import('element-plus/es')['ElHeader']\n    ElIcon: typeof import('element-plus/es')['ElIcon']\n    ElMain: typeof import('element-plus/es')['ElMain']\n    ElMenu: typeof import('element-plus/es')['ElMenu']\n    ElMenuItem: typeof import('element-plus/es')['ElMenuItem']\n    ElResult: typeof import('element-plus/es')['ElResult']\n    ElRow: typeof import('element-plus/es')['ElRow']\n    ElSkeleton: typeof import('element-plus/es')['ElSkeleton']\n    RouterLink: typeof import('vue-router')['RouterLink']\n    RouterView: typeof import('vue-router')['RouterView']\n  }\n}\n"}];
+/* AiHealth 源码总览 —— 浏览器端脚本（由生成器直接内联进 HTML） */
+(function () {
+  'use strict';
+
+  var EXT_LABEL = { java: 'JAVA', xml: 'XML', yaml: 'YML', js: 'JS', ts: 'TS', vue: 'VUE', json: 'JSON', css: 'CSS', md: 'MD', text: 'TXT' };
+
+  var KW = {
+    java: 'abstract|assert|boolean|break|byte|case|catch|char|class|const|continue|default|do|double|else|enum|extends|final|finally|float|for|if|implements|import|instanceof|int|interface|long|native|new|package|private|protected|public|record|return|short|static|strictfp|super|switch|synchronized|this|throw|throws|transient|try|void|volatile|while|var|sealed|permits|yield|true|false|null',
+    js: 'async|await|break|case|catch|class|const|continue|debugger|default|delete|do|else|export|extends|finally|for|from|function|if|import|in|instanceof|let|new|of|return|static|super|switch|this|throw|try|typeof|var|void|while|yield|true|false|null|undefined',
+    ts: 'async|await|break|case|catch|class|const|continue|declare|default|delete|do|else|enum|export|extends|finally|for|from|function|if|implements|import|in|instanceof|interface|let|namespace|new|of|private|protected|public|readonly|return|static|super|switch|this|throw|try|type|typeof|var|void|while|yield|true|false|null|undefined|any|string|number|boolean',
+    vue: 'async|await|break|case|catch|class|const|continue|default|delete|do|else|export|extends|finally|for|from|function|if|import|in|instanceof|let|new|of|return|switch|this|throw|try|typeof|var|void|while|true|false|null|undefined'
+  };
+
+  // 全部使用正则字面量，避免字符串转义丢失
+  var RE = {
+    cmtC: /\/\*[\s\S]*?\*\/|\/\/[^\n]*/,
+    cmtXml: /<!--[\s\S]*?-->/,
+    cmtYaml: /(?:^|[ \t])#[^\n]*/,
+    strCode: /`(?:\\[\s\S]|[^`\\])*`|"(?:\\[\s\S]|[^"\\\n])*"|'(?:\\[\s\S]|[^'\\\n])*'/,
+    strXml: /"[^"\n]*"/,
+    strYaml: /"[^"\n]*"|'[^'\n]*'/,
+    tag: /<\/?[A-Za-z][\w.:-]*|\/?>/,
+    vueAttr: /(?:class|style|v-[\w-]+|:[\w.-]+|@[\w.-]+|#[\w-]+)(?==)/,
+    yamlKey: /^[ \t-]*[\w.$-]+(?=\s*:)/m,
+    jsonKey: /"[\w$@.-]+"(?=\s*:)/,
+    cssProp: /[-a-zA-Z]+(?=\s*:)/,
+    num: /\b\d[\d_]*(?:\.\d+)?\b/,
+    ann: /@[A-Za-z_]\w*/,
+    fn: /\b[a-zA-Z_$][\w$]*(?=\s*\()/
+  };
+
+  function rulesFor(lang) {
+    var r = [];
+    var isCode = lang === 'java' || lang === 'js' || lang === 'ts' || lang === 'vue';
+    if (lang === 'xml' || lang === 'vue') r.push(['cmt', RE.cmtXml]);
+    if (isCode) r.push(['cmt', RE.cmtC]);
+    if (lang === 'css') r.push(['cmt', RE.cmtC]);
+    if (lang === 'yaml') r.push(['cmt', RE.cmtYaml]);
+    if (lang === 'yaml') r.push(['key', RE.yamlKey]);
+    if (lang === 'json') r.push(['key', RE.jsonKey]);
+    if (lang === 'css') r.push(['key', RE.cssProp]);
+    if (isCode || lang === 'json') r.push(['str', RE.strCode]);
+    if (lang === 'xml') r.push(['str', RE.strXml]);
+    if (lang === 'yaml') r.push(['str', RE.strYaml]);
+    if (lang === 'xml' || lang === 'vue') r.push(['tag', RE.tag]);
+    if (lang === 'vue') r.push(['key', RE.vueAttr]);
+    if (isCode && KW[lang]) r.push(['kw', new RegExp('\\b(?:' + KW[lang] + ')\\b')]);
+    if (isCode) r.push(['ann', RE.ann]);
+    if (isCode || lang === 'json' || lang === 'css' || lang === 'yaml') r.push(['num', RE.num]);
+    if (isCode) r.push(['fn', RE.fn]);
+    return r;
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  var compiled = {};
+
+  function compile(lang) {
+    if (compiled[lang]) return compiled[lang];
+    var rules = rulesFor(lang);
+    if (!rules.length) return null;
+    var names = [], parts = [];
+    rules.forEach(function (x, i) {
+      names.push(x[0]);
+      parts.push('(?<r' + i + '>' + x[1].source + ')');
+    });
+    var c = { names: names, re: new RegExp(parts.join('|'), 'gm') };
+    compiled[lang] = c;
+    return c;
+  }
+
+  function highlight(src, lang) {
+    var c = compile(lang);
+    if (!c) return escHtml(src);
+    c.re.lastIndex = 0;
+    var re = c.re;
+    var out = '', last = 0, m;
+    while ((m = re.exec(src)) !== null) {
+      if (m[0].length === 0) { re.lastIndex++; continue; }
+      if (m.index > last) out += escHtml(src.slice(last, m.index));
+      var g = m.groups || {};
+      var cls = 'x';
+      for (var i = 0; i < c.names.length; i++) {
+        if (g['r' + i] !== undefined) { cls = c.names[i]; break; }
+      }
+      out += '<span class="' + cls + '">' + escHtml(m[0]) + '</span>';
+      last = m.index + m[0].length;
+    }
+    out += escHtml(src.slice(last));
+    return out;
+  }
+
+  if (typeof module !== 'undefined' && module.exports) { module.exports = { highlight: highlight }; }
+
+  if (typeof document === 'undefined') return;
+
+  /* ---------------- 侧栏 ---------------- */
+  var FILES = window.FILES;
+  var tree = document.getElementById('tree');
+  var groups = [];
+  FILES.forEach(function (f) {
+    var g = null;
+    for (var i = 0; i < groups.length; i++) if (groups[i].name === f.group) g = groups[i];
+    if (!g) { g = { name: f.group, files: [] }; groups.push(g); }
+    g.files.push(f);
+  });
+
+  groups.forEach(function (g) {
+    var wrap = document.createElement('div');
+    wrap.className = 'group';
+    wrap.dataset.group = g.name;
+    var h = document.createElement('div');
+    h.className = 'group-h';
+    h.innerHTML = '<span class="caret">▼</span><span>' + g.name + '</span><span class="cnt">' + g.files.length + '</span>';
+    h.onclick = function () { wrap.classList.toggle('collapsed'); };
+    wrap.appendChild(h);
+    var box = document.createElement('div');
+    box.className = 'items';
+    g.files.forEach(function (f) {
+      var it = document.createElement('div');
+      it.className = 'item';
+      it.dataset.id = f.id;
+      it.dataset.search = (f.rel + ' ' + f.note).toLowerCase();
+      it.title = f.rel + ' — ' + f.note;
+      it.innerHTML = '<span class="ext">' + (EXT_LABEL[f.lang] || 'TXT') + '</span><span class="nm">' +
+        f.label.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</span>';
+      it.onclick = function () { select(f.id); };
+      box.appendChild(it);
+    });
+    wrap.appendChild(box);
+    tree.appendChild(wrap);
+  });
+
+  /* ---------------- 渲染 ---------------- */
+  var viewer = document.getElementById('viewer');
+  var crumb = document.getElementById('crumb');
+  var metaEl = document.getElementById('meta');
+  var copyBtn = document.getElementById('copyBtn');
+  var current = null;
+
+  function select(id) {
+    var f = null;
+    for (var i = 0; i < FILES.length; i++) if (FILES[i].id === id) f = FILES[i];
+    if (!f) return;
+    current = f;
+    var items = document.querySelectorAll('.item');
+    for (var j = 0; j < items.length; j++) items[j].classList.toggle('active', items[j].dataset.id === id);
+    crumb.innerHTML = '<b>' + escHtml(f.rel) + '</b><span class="note">' + escHtml(f.note) + '</span>';
+    metaEl.textContent = f.lines + ' 行 · ' + (f.size / 1024).toFixed(1) + ' KB';
+    var nums = [];
+    for (var n = 1; n <= f.lines; n++) nums.push(n);
+    viewer.innerHTML = '<div class="codewrap"><div class="ln">' + nums.join('\n') +
+      '</div><pre class="code">' + highlight(f.code, f.lang) + '</pre></div>';
+    viewer.scrollTop = 0;
+    copyBtn.textContent = '复制代码';
+    copyBtn.classList.remove('ok');
+  }
+  window.select = select;
+
+  copyBtn.onclick = function () {
+    if (!current) return;
+    var done = function () {
+      copyBtn.textContent = '已复制 ✓';
+      copyBtn.classList.add('ok');
+      setTimeout(function () { copyBtn.textContent = '复制代码'; copyBtn.classList.remove('ok'); }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(current.code).then(done, function () { fallback(); done(); });
+    } else { fallback(); done(); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = current.code;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) { }
+      ta.remove();
+    }
+  };
+
+  /* ---------------- 筛选 ---------------- */
+  document.getElementById('filter').oninput = function (e) {
+    var q = e.target.value.trim().toLowerCase();
+    var wraps = document.querySelectorAll('.group');
+    for (var i = 0; i < wraps.length; i++) {
+      var vis = 0;
+      var items = wraps[i].querySelectorAll('.item');
+      for (var j = 0; j < items.length; j++) {
+        var hit = !q || items[j].dataset.search.indexOf(q) !== -1;
+        items[j].style.display = hit ? '' : 'none';
+        if (hit) vis++;
+      }
+      wraps[i].style.display = vis ? '' : 'none';
+      if (q && vis) wraps[i].classList.remove('collapsed');
+    }
+  };
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+      e.preventDefault();
+      document.getElementById('filter').focus();
+    }
+  });
+
+  select(FILES[0].id);
+})();
+
+</script>
+</body>
+</html>

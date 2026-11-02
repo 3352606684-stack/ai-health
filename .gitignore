@@ -1,0 +1,54 @@
+# ==================== Java / Maven ====================
+target/
+build/
+*.class
+*.jar
+*.war
+.mvn/timing.properties
+
+# ==================== Node / 前端构建 ====================
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==================== 根目录遗留的孤立依赖 ====================
+# 早期在根目录误执行 npm install axios 的产物，实际依赖在 demo/frontend/
+/package.json
+/package-lock.json
+/node_modules/
+
+# ==================== IDE / 编辑器 ====================
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.user
+
+# ==================== 系统文件 ====================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==================== 日志与环境变量 ====================
+logs/
+*.log
+.env
+.env.local
+.env.*.local
+
+# ==================== WorkBuddy 本地数据 ====================
+# 截图体积大且可重新生成，不入库；memory/ 与 tools/ 保留（是项目笔记和脚本）
+.workbuddy/previews/
+
+# ==================== 自动生成 ====================
+.github/modernize/java-upgrade/hooks/*.json
