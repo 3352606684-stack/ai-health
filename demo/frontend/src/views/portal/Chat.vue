@@ -15,11 +15,18 @@
     GET  /api/emotion/today                     → { label, score, feeling, level, hint }
     GET  /api/ai/sessions                       → [{ id, title, time }]
     GET  /api/ai/sessions/{id}/messages         → [{ role:'user'|'ai', content, time }]
+    POST /api/ai/sessions  { title, messages }  → { id }（新建会话时把当前对话归档）
     POST /api/ai/chat  { sessionId, content }   → 流式回复用 SSE / WebSocket
                                                      非流式则返回 { content, time }
 
   当前阶段：不发任何网络请求。发送消息时本地插入一条，800ms 后从 REPLIES 里回一条，
   用来验证气泡排版、滚动、字数统计和发送按钮的禁用状态。
+
+  会话历史（已接通）：
+    · 每轮问答结束时把当前对话写回左栏（`send()` 的 finally → `archiveCurrent()`）
+    · 点历史条目 = 只读浏览：输入框禁用、不发任何请求、不消耗 token
+      原因是接大模型后继续聊要把整段历史重新拼进请求体的 messages，越长越贵
+    · 点「当前对话」那条 或 「返回当前对话」= 退出浏览，输入框解禁
 -->
 <template>
   <section class="ai-chat">
@@ -88,7 +95,10 @@
             v-for="s in sessions"
             :key="s.id"
             class="history-item"
-            :class="{ 'is-active': s.id === currentSessionId }"
+            :class="{
+              'is-active': s.id === currentSessionId,
+              'is-viewing': s.id === viewingId
+            }"
             @click="openSession(s.id)"
           >
             <span class="history-title">{{ s.title }}</span>
@@ -118,9 +128,9 @@
         </button>
       </header>
 
-      <!-- 消息区 -->
+      <!-- 消息区：只读浏览历史时渲染 displayMessages，不动正在进行的 messages -->
       <div ref="msgBox" class="messages">
-        <div v-for="(m, i) in messages" :key="i" class="msg" :class="`is-${m.role}`">
+        <div v-for="(m, i) in displayMessages" :key="i" class="msg" :class="`is-${m.role}`">
           <div v-if="m.role === 'ai'" class="msg-avatar">
             <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20.5 11.6a7.9 7.9 0 0 1-8.5 7.9 8.6 8.6 0 0 1-3.4-.7L4 20.5l1.6-4.3a7.7 7.7 0 0 1-1-3.8 7.9 7.9 0 0 1 7.9-7.9h.6a7.9 7.9 0 0 1 7.4 7.1z" />
@@ -134,35 +144,47 @@
           </div>
         </div>
 
-        <p v-if="sending" class="typing">{{ assistant.name }} 正在输入…</p>
+        <p v-if="sending && !streamHasText" class="typing">{{ assistant.name }} 正在输入…</p>
       </div>
 
       <!-- 输入区 -->
       <footer class="composer">
-        <div class="input-wrap">
+        <!-- 只读浏览条：明确告诉用户"现在只能看"，并给一条回到当前对话的路 -->
+        <div v-if="isReadOnly" class="readonly-bar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c67a1c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="8.5" />
+            <path d="M12 7.5v5l3.2 1.9" />
+          </svg>
+          <span class="readonly-text">正在浏览历史会话，仅可查看</span>
+          <button class="readonly-back" @click="exitPreview">返回当前对话</button>
+        </div>
+
+        <div class="input-wrap" :class="{ 'is-disabled': isReadOnly }">
           <textarea
+            ref="inputEl"
             v-model="input"
             class="input"
             maxlength="500"
-            placeholder="请输入您想要分享的内容..."
+            :disabled="isReadOnly"
+            :placeholder="isReadOnly ? '历史会话已结束，不能继续对话' : '请输入您想要分享的内容...'"
             @keydown.enter.exact.prevent="send"
           ></textarea>
-
-          <button
-            class="send"
-            :disabled="!input.trim() || sending"
-            :title="sending ? '正在回复中' : '发送'"
-            @click="send"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <button class="send" :class="{ 'is-stop': sending }" :disabled="isReadOnly || (!sending && !input.trim())"
+            :title="isReadOnly ? '历史会话仅可查看' : sending ? '停止生成' : '发送'" @click="sending ? stopGenerate() : send()">
+            <svg v-if="!sending" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.9"
+              stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 3L10.5 13.5" />
               <path d="M21 3l-6.6 18-3.9-8.4L2 8.7z" />
             </svg>
+            <svg v-else viewBox="0 0 24 24" fill="none">
+              <rect x="7.5" y="7.5" width="9" height="9" rx="1.6" fill="#ffffff" />
+            </svg>
           </button>
+
         </div>
 
         <div class="composer-foot">
-          <span>按Enter发送，Shift+Enter换行</span>
+          <span>{{ isReadOnly ? '仅浏览模式' : '按Enter发送，Shift+Enter换行' }}</span>
           <span>{{ input.length }}/500</span>
         </div>
       </footer>
@@ -176,12 +198,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 // 函数式组件不会被 unplugin 自动注入样式，必须手动引入，否则提示框会跑到左上角
 import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/message-box/style/css'
+import { streamChat } from '../../api/ai'
+
 
 /*
   USE_MOCK：true 时不发网络请求，全部用本地数据。
   后端接口就绪后改 false，把 loadXxx 里的 else 分支打开即可。
 */
-const USE_MOCK = true
+const USE_MOCK = false
 
 /* ==================== ① 助手状态 ====================
    改 assistant.online = false，左侧绿点会变灰、文案变「暂时离线」 */
@@ -203,20 +227,104 @@ const mood = reactive({
   hint: '情绪状态平稳'
 })
 
-/* ==================== ③ 会话历史 ==================== */
-const sessions = ref([])
-const currentSessionId = ref(null)
-
-/* ==================== ④ 消息 ==================== */
-/* 开场问候语：初始渲染和"新建会话"共用，避免两处各写一份、改文案时漏改 */
+/* ==================== ③ 公共常量 ==================== */
+/* 开场问候语：初始渲染、"新建会话"、演示历史三处共用，避免各写一份、改文案时漏改 */
 const GREETING =
   '您好！我是小暖，您的AI心理健康助手。很高兴陪伴您，为您提供温暖的心理支持。请告诉我，今天您感觉怎么样？有什么想要分享的吗？'
 
-const messages = ref([{ role: 'ai', text: GREETING, time: '刚刚' }])
+/* ==================== ④ 会话历史 ====================
+   一条历史 = { id, title, time, messages: [...] }
+   这里只存"已归档"的会话；正在聊的永远是最下面的活动数组 messages。
+
+     currentSessionId = null → 当前这段对话还没进历史（一条消息都还没发）
+     dirty = true            → 有没写回历史的改动。每轮问答结束时 send() 会实时写回，
+                               所以正常情况恒为 false，只作兜底（切换/新建时补写）
+
+   这样"当前对话"永远等于列表里高亮的那一条：发第一条消息就入列表，聊一句时间就刷新。
+   点其他几条只是只读浏览（见下方 viewingId），不会影响当前这段对话。 */
+const MOCK_SESSIONS = [
+  {
+    id: 's-demo-1',
+    title: '最近总是睡不着',
+    time: '09:12',
+    messages: [
+      { role: 'ai', text: GREETING, time: '09:08' },
+      { role: 'user', text: '最近总是睡不着，一躺下就开始想事情。', time: '09:09' },
+      {
+        role: 'ai',
+        text: '听起来这段时间你的大脑很难真正休息下来。愿意说说，夜里想得最多的是哪一类事情吗？',
+        time: '09:12'
+      }
+    ]
+  },
+  {
+    id: 's-demo-2',
+    title: '和室友闹了点矛盾',
+    time: '昨天',
+    messages: [
+      { role: 'ai', text: GREETING, time: '昨天 20:31' },
+      { role: 'user', text: '今天和室友吵架了，现在还在生气。', time: '昨天 20:32' },
+      {
+        role: 'ai',
+        text: '生气的时候人是很难讲道理的。你愿意先说说，是什么把火点起来的吗？',
+        time: '昨天 20:35'
+      }
+    ]
+  }
+]
+
+/* 【模拟】接后端后这行换成 sessions.value = await fetchSessions() */
+const sessions = ref(
+  USE_MOCK ? MOCK_SESSIONS.map((s) => ({ ...s, messages: s.messages.map((m) => ({ ...m })) })) : []
+)
+const currentSessionId = ref(null)
+const dirty = ref(false)
+
+/* ---------- 只读浏览 ----------
+   viewingId 非 null = 正在翻阅某条历史会话，此时输入框一律禁用。
+   理由：接大模型后，继续聊意味着要把这段历史重新拼进请求体的 messages 发一遍，
+   历史越长每轮越贵；只浏览不发任何请求，一个 token 都不花。
+   注意浏览时消息渲染的是 viewMessages 副本，正在进行的 messages 原封不动。 */
+const viewingId = ref(null)
+const viewMessages = ref([])
+
+const isReadOnly = computed(() => viewingId.value !== null)
+
+/* 消息区渲染哪个数组：浏览历史看 viewMessages，正常聊天看 messages */
+const displayMessages = computed(() => (isReadOnly.value ? viewMessages.value : messages.value))
+
+/* ==================== ⑤ 消息 ==================== */
+const messages = ref([greetingMsg()])
 
 const input = ref('')
 const sending = ref(false)
 const msgBox = ref(null)
+/* textarea 的引用：切换/新建会话后把光标放回去 */
+const inputEl = ref(null)
+/* 流式相关 */
+let abortCtrl = null
+let scrollTimer = null
+
+/* 流式时每来一个字都滚底会抖，节流到 100ms 一次 */
+function scrollSoon() {
+  if (scrollTimer) return
+  scrollTimer = setTimeout(() => {
+    scrollTimer = null
+    scrollToBottom()
+  }, 100)
+}
+
+/* 停止生成：中断 fetch，服务端会因为写失败自动收尾 */
+function stopGenerate() {
+  abortCtrl?.abort()
+}
+
+/* 流式气泡已经有字了就别再显示"正在输入…" */
+const streamHasText = computed(() => {
+  const last = messages.value[messages.value.length - 1]
+  return !!(last && last.role === 'ai' && last.text)
+})
+
 
 /* 本地模拟回复池：接后端后整段删掉 */
 const REPLIES = [
@@ -233,14 +341,70 @@ function nowText() {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function greetingMsg() {
+  return { role: 'ai', text: GREETING, time: '刚刚' }
+}
+
+/* 历史条目标题：取第一条用户消息，超过 12 个字截断 —— 和主流 IM 的会话列表一致 */
+function makeTitle(list) {
+  const first = list.find((m) => m.role === 'user')
+  if (!first) return '新的对话'
+  const t = first.text.replace(/\s+/g, ' ').trim()
+  return t.length > 12 ? `${t.slice(0, 12)}…` : t
+}
+
+/* 归档当前对话：没归档过的插到最前；已归档过的原地更新再置顶。
+   返回是否真的写入，供调用方决定要不要提示 */
+function archiveCurrent() {
+  // 只有开场白、用户一个字没说 → 不值得占一条历史
+  if (isBlankSession.value) return false
+
+  const snap = {
+    title: makeTitle(messages.value),
+    time: nowText(),
+    // 必须深拷贝：直接存 messages.value 会与活动数组共享同一个引用，
+    // 之后在新会话里 push，历史里那条也会跟着变长
+    messages: messages.value.map((m) => ({ ...m }))
+  }
+
+  const idx = sessions.value.findIndex((s) => s.id === currentSessionId.value)
+  if (idx >= 0) {
+    const old = sessions.value[idx]
+    sessions.value.splice(idx, 1)
+    /* title 保留旧值：标题只在会话第一次入库时由第一条用户消息生成，
+       之后聊多少轮都不再变（否则列表里的名字会随着最后一句内容乱跳） */
+    sessions.value.unshift({ ...old, ...snap, title: old.title })
+  } else {
+    const id = `s-${Date.now().toString(36)}`
+    sessions.value.unshift({ id, ...snap })
+    currentSessionId.value = id
+  }
+
+  dirty.value = false
+  return true
+}
+
 async function scrollToBottom() {
   await nextTick()
   if (msgBox.value) msgBox.value.scrollTop = msgBox.value.scrollHeight
 }
 
 async function send() {
+  // 双保险：输入框已 disabled，但 Enter / 脚本触发也要拦住
+  if (isReadOnly.value) {
+    ElMessage.info('历史会话仅支持查看，不能继续对话')
+    return
+  }
+
   const text = input.value.trim()
   if (!text || sending.value) return
+
+  /* 进上下文的历史：只取最近 12 条，并且剔掉开场白。
+     接大模型后这段就是 token 成本的主要来源，条数越大每轮越贵 */
+  const history = messages.value
+    .filter((m) => m.text && m.text !== GREETING)
+    .slice(-12)
+    .map((m) => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text }))
 
   messages.value.push({ role: 'user', text, time: nowText() })
   input.value = ''
@@ -249,7 +413,6 @@ async function send() {
 
   try {
     if (USE_MOCK) {
-      // 【模拟】800ms 后回一条
       await new Promise((resolve) => setTimeout(resolve, 800))
       messages.value.push({
         role: 'ai',
@@ -258,13 +421,36 @@ async function send() {
       })
       replyIndex += 1
     } else {
-      // 【待接】POST /api/ai/chat（或 WebSocket 推送）
-      // 真实场景把接口返回的消息 push 进 messages 即可
+      /* 先 push 一个空 AI 气泡占位，再拿到它的响应式引用。
+         之所以 push 完再取，是因为 ref 深响应式里数组元素才是被代理的那份，
+         直接改 push 前的原始对象有可能不触发更新 */
+      messages.value.push({ role: 'ai', text: '', time: nowText() })
+      const bubble = messages.value[messages.value.length - 1]
+
+      abortCtrl = new AbortController()
+      await streamChat({
+        content: text,
+        history,
+        signal: abortCtrl.signal,
+        onDelta: (_delta, full) => {
+          bubble.text = full
+          scrollSoon()
+        },
+        onError: (err) => {
+          if (!bubble.text) bubble.text = '抱歉，我这边出了点问题，请稍后再试。'
+          ElMessage.error(err.message || 'AI 服务暂时不可用')
+        }
+      })
+
+      // 一个字都没吐出来（比如后端 500），撤掉空泡，别留个空框
+      if (!bubble.text) messages.value.pop()
+      else bubble.time = nowText()
     }
   } finally {
-    // 必须放在 finally：接后端后如果接口报错、或 USE_MOCK 改成 false，
-    // sending 不在这里复位就会永久为 true —— 发送按钮和"新建会话"会一起被锁死
+    abortCtrl = null
     sending.value = false
+    dirty.value = true
+    archiveCurrent()   // 流结束才写回历史，位置不用改
     scrollToBottom()
   }
 }
@@ -275,13 +461,12 @@ const isBlankSession = computed(
   () => messages.value.length <= 1 && messages.value.every((m) => m.role === 'ai')
 )
 
-/* 新建会话：清空当前对话，回到开场问候语
+/* 新建会话：① 把当前对话归档进左侧「会话历史」 ② 清空面板回到开场问候语
    三道保护缺一不可：
      ① AI 正在回复时禁止新建 —— 否则 800ms 后那条回复会 push 到新会话里，
         表现为"刚新建就冒出一句答非所问的 AI 消息"
      ② 当前已是空白会话时不再执行 —— 否则可以无限点，每次都重置一遍数组
-     ③ 已有对话内容时先确认 —— 点击按钮在对话框右上角，很容易误触，
-        而当前是 mock 阶段没有任何持久化，清掉就真的没了 */
+     ③ 已有对话内容时先确认 —— 按钮在对话框右上角，很容易误触 */
 async function newSession() {
   if (sending.value) {
     ElMessage.warning('请等待当前回复完成')
@@ -294,7 +479,7 @@ async function newSession() {
   }
 
   try {
-    await ElMessageBox.confirm('新建会话会清空当前对话内容，确定继续吗？', '新建会话', {
+    await ElMessageBox.confirm('当前对话已保存在左侧「会话历史」，开启新对话不会影响它。', '新建会话', {
       confirmButtonText: '新建',
       cancelButtonText: '取消',
       type: 'warning'
@@ -303,17 +488,58 @@ async function newSession() {
     return // 点了取消或右上角关闭
   }
 
-  // 【待接】POST /api/ai/sessions —— 先把当前会话存进历史，再清空
+  // 兜底：正常情况下 send() 已经实时写回了，这里只在极端情况（如发送中途报错）补写一次
+  if (dirty.value) archiveCurrent()
+
+  // 如果此刻正在浏览历史，先退出只读，否则新对话会被历史内容挡住
+  viewingId.value = null
+  viewMessages.value = []
+
   currentSessionId.value = null
-  messages.value = [{ role: 'ai', text: GREETING, time: '刚刚' }]
+  messages.value = [greetingMsg()]
   input.value = ''
+  dirty.value = false
   replyIndex = 0
   await scrollToBottom()
+  // 新对话直接把光标放进输入框，不用再点一下
+  inputEl.value?.focus()
 }
 
+/* 点历史条目：进入只读浏览（不拼模型上下文、不发请求、不消耗 token）
+   点的是「当前对话」那条 → 直接退出浏览，回到可以继续输入的聊天状态 */
 function openSession(id) {
-  // 【待接】GET /api/ai/sessions/{id}/messages
-  currentSessionId.value = id
+  // 已经在看这条了，再点没意义
+  if (id === viewingId.value) return
+
+  // 点当前对话自己：等于"退出浏览"
+  if (id === currentSessionId.value) {
+    exitPreview()
+    return
+  }
+
+  // 正在等回复时先别切，否则回复落到看不见的会话里，用户会以为丢了
+  if (sending.value) {
+    ElMessage.warning('请等待当前回复完成')
+    return
+  }
+
+  const target = sessions.value.find((s) => s.id === id)
+  if (!target) return
+
+  /* 【待接】GET /api/ai/sessions/{id}/messages
+     只读，所以拿到数据只填 viewMessages，绝不碰 messages / currentSessionId */
+  viewingId.value = id
+  viewMessages.value = target.messages.map((m) => ({ ...m }))
+  scrollToBottom()
+}
+
+/* 退出只读浏览，回到当前对话（输入框随之解禁） */
+function exitPreview() {
+  if (!viewingId.value) return
+  viewingId.value = null
+  viewMessages.value = []
+  scrollToBottom()
+  nextTick(() => inputEl.value?.focus())
 }
 
 onMounted(() => {
@@ -551,6 +777,7 @@ onMounted(() => {
 }
 
 .history-list {
+  flex: 1 1 auto;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -572,6 +799,14 @@ onMounted(() => {
 .history-item:hover,
 .history-item.is-active {
   background: #fdf6ed;
+}
+
+/* 正在浏览的那条：左侧橙色竖条。
+   is-active 表示"当前正在进行的对话"，is-viewing 表示"正在翻阅的历史"，
+   两者不会同时出现（点当前对话那条就等于退出浏览） */
+.history-item.is-viewing {
+  background: #fdf0dd;
+  box-shadow: inset 2px 0 0 #f2a13c;
 }
 
 .history-title {
@@ -760,6 +995,51 @@ onMounted(() => {
   background: #ffffff;
 }
 
+/* 只读浏览条 */
+.readonly-bar {
+  margin-bottom: 10px;
+  padding: 8px 10px 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  background: #fdf6ed;
+  font-size: 12px;
+  color: #8a6a45;
+}
+
+.readonly-bar svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
+
+.readonly-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readonly-back {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border: 1px solid #f0d9b8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #c67a1c;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.readonly-back:hover {
+  background: #fdf0dd;
+  border-color: #e8c99b;
+}
+
 .input-wrap {
   display: flex;
   align-items: flex-end;
@@ -772,6 +1052,17 @@ onMounted(() => {
 
 .input-wrap:focus-within {
   border-color: #f2b877;
+}
+
+/* 只读态：整块输入区灰掉，视觉上就告诉用户"这里点不动" */
+.input-wrap.is-disabled {
+  background: #f7f8fa;
+  border-color: #edeff2;
+}
+
+.input-wrap.is-disabled .send {
+  background: #d9dce2;
+  cursor: not-allowed;
 }
 
 .input {
@@ -792,6 +1083,11 @@ onMounted(() => {
 
 .input::placeholder {
   color: #b5b9c2;
+}
+
+.input:disabled {
+  color: #a8abb2;
+  cursor: not-allowed;
 }
 
 .send {
@@ -819,6 +1115,11 @@ onMounted(() => {
   opacity: 0.9;
   cursor: not-allowed;
 }
+/* 生成中：按钮变成"停止"，不给降透明度，否则看起来像点不动 */
+.send.is-stop {
+  background: #e89529;
+}
+
 
 .send svg {
   width: 100%;
@@ -847,6 +1148,7 @@ onMounted(() => {
     flex: 0 0 auto;
     width: 100%;
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 10px;
   }
 
@@ -874,9 +1176,13 @@ onMounted(() => {
     height: 60px;
   }
 
-  /* 会话历史在窄屏先不占位置，等真有多条记录再考虑放进抽屉 */
-  .history {
-    display: none;
+  /* 窄屏也要能翻历史：整行铺开 + 限高滚动，不再整块隐藏。
+     必须写 .side .history —— 上面 .side .card 的 flex 特异性更高，
+     只写 .history 会被它压回三分之一宽，标题全被截成"和室…" */
+  .side .history {
+    flex: 1 1 100%;
+    max-height: 132px;
+    min-height: 96px;
   }
 
   /* 只占剩余空间：用 flex-basis 0 而不是 min-height 撑，
@@ -884,7 +1190,7 @@ onMounted(() => {
   .panel {
     flex: 1 1 0;
     max-width: none;
-    min-height: 0;
+    min-height: 320px;
   }
 
   .msg-main {

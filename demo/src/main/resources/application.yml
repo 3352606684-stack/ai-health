@@ -1,20 +1,37 @@
+server:
+  port: 8080
+
 spring:
   application:
     name: ai-health
-  servlet:
-    multipart:
-      max-file-size: 5MB
-      max-request-size: 10MB  
 
-server:
-  port: 8080
+  # optional: 文件存在就加载，不存在就跳过 —— 这份文件不进 git（见 .gitignore）
+  config:
+    import: optional:classpath:application-local.yml
+
   servlet:
     encoding:
       charset: UTF-8
       enabled: true
       force: true
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+  mvc:
+    async:
+      # 与 SseEmitter(0L) 双保险；单位默认毫秒，按你的 Spring 版本验证
+      request-timeout: -1
 
 logging:
   level:
     root: INFO
     com.example.aihealth: DEBUG
+
+ai:
+  base-url: https://api.deepseek.com/v1
+  # 只读环境变量，默认留空 —— 真实 key 写在本机的 application-local.yml（已被 .gitignore 排除）
+  api-key: ${AI_API_KEY:}
+  model: deepseek-chat
+  timeout-seconds: 120
+  max-history: 12

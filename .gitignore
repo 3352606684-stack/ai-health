@@ -46,6 +46,15 @@ logs/
 .env.local
 .env.*.local
 
+# ==================== 本机私有配置（真实密钥） ====================
+# 任何 application-local / application-secret 一律不入库；
+# 真实 api-key 只写在这里，application.yml 里只留 ${AI_API_KEY:}
+**/application-local.yml
+**/application-local.yaml
+**/application-secret.yml
+**/application-secret.yaml
+**/application-*.local.yml
+
 # ==================== WorkBuddy 本地数据 ====================
 # 截图体积大且可重新生成，不入库；memory/ 与 tools/ 保留（是项目笔记和脚本）
 .workbuddy/previews/
